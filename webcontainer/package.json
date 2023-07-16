@@ -1,0 +1,10 @@
+{
+  "name": "example-app",
+  "type": "module",
+  "dependencies": {
+    "create-next-app": "latest"
+  },
+  "scripts": {
+    "start": "create-next-app --ts --tailwind --eslint --app --src-dir --import-alias '@/*' --use-pnpm webcontainer && cd webcontainer && npm run dev"
+  }
+}
