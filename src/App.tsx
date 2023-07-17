@@ -73,6 +73,12 @@ export function App({ value, onChange, url, applyPatch }) {
       }
     }
   }, [messages]);
+  function refreshWebview() {
+    setTimeout(() => {
+        // hack around a weird refresh bug
+        iframeRef.current.src = url;
+    });
+  }
   return (
     <div>
       <div className="text-center">
@@ -106,6 +112,7 @@ export function App({ value, onChange, url, applyPatch }) {
             Phone Preview
           </button>
         </div>
+        <button className="btn" onClick={() => refreshWebview()}>Refresh</button>
       </div>
       <div className="flex h-screen">
         {isChatVisible && (

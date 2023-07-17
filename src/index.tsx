@@ -29,6 +29,7 @@ const renderApp = async () => {
       <App
         value={page}
         url={window.webcontainerUrl}
+        // refreshWebview={() => }
         onChange={(text) => writeAppPage(text)}
         applyPatch={(patch) => writeAppPage(patch)}
       />
