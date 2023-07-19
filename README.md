@@ -1,4 +1,4 @@
-<a href="https://stackblitz.com/~/github.com/BLamy/embra-studio" rel="codeflow">
+<a href="https://stackblitz.com/~/github.com/embra-app/embra-studio" rel="codeflow">
    <img width="40" alt="codeflow" src="https://pbs.twimg.com/profile_images/1579877335188221967/nadl7xwv_400x400.jpg">
 </a>
 
