@@ -2,6 +2,10 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { WebContainer } from "@webcontainer/api";
 import App from "./App";
+import * as Diff from 'diff';
+
+// Should probably be in a .d.ts file 
+declare const __PACKAGE_CONTAINER_JSON__: string
 declare global {
   interface Window {
     webcontainer: WebContainer
@@ -9,6 +13,7 @@ declare global {
   }
 }
 
+// Currently only supports editing one page
 let currentFileName = "/webcontainer/src/app/page.tsx";
 async function writeAppPage(content) {
   await webcontainerInstance.fs.writeFile(currentFileName, content, "utf-8");
@@ -21,42 +26,25 @@ async function readAppPage() {
   ).toString();
 }
 
+async function applyPatch(patch) {
+  const page = await readAppPage();
+  // TODO figure out how to find out if applying a patch fails
+  // Have GPT reflect on it's mistake in the event of a mistake
+  const newPage = Diff.applyPatch(page, patch);
+  writeAppPage(newPage)
+}
+
 const root = ReactDOM.createRoot(document.getElementById("app"));
 const renderApp = async () => {
-  const page = await readAppPage();
-
-    root.render(
-      <App
-        value={page}
-        url={window.webcontainerUrl}
-        // refreshWebview={() => }
-        onChange={(text) => writeAppPage(text)}
-        applyPatch={(patch) => writeAppPage(patch)}
-      />
-    );
-} 
-
-// TODO figure out how to get patches working
-async function applyPatch(patch) {
-  debugger
-  console.log('applyPatch', patch)
-  const patchPath = "/webcontainer/patchy.patch";
-  console.log('writting file')
-  console.log(await webcontainerInstance.fs.writeFile(patchPath, patch, "utf-8"));
-  console.log('applying patch')
-
-  const gitApplyProcess = await webcontainerInstance.spawn("git", ["apply", patchPath ]);
-  gitApplyProcess.output.pipeTo(
-    new WritableStream({
-      write(data) {
-        console.log(data);
-      },
-    })
+  root.render(
+    <App
+      value={await readAppPage()}
+      url={window.webcontainerUrl}
+      overwriteFile={newCode => writeAppPage(newCode)}
+      applyPatch={(patch) => applyPatch(patch)}
+    />
   );
-  await gitApplyProcess.exit;
-
-  console.log('patch applied')
-}
+} 
 
 /** @type {import('@webcontainer/api').WebContainer}  */
 let webcontainerInstance;

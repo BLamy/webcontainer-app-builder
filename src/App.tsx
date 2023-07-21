@@ -9,9 +9,10 @@ const configuration = new Configuration({
 });
 const openai = new OpenAIApi(configuration);
 
-export function App({ value, onChange, url, applyPatch }) {
+export function App({ value, overwriteFile, url, applyPatch }) {
   const iframeRef = React.useRef();
   const [messages, setMessages] = React.useState([
+    // The patchsets are kind of working but I wouldn't demo using it quite yet.
     // { role: "system", content: "Generate a valid patchset that can be applied with git apply based on the users code and requirements. Use tailwindcss instead of inline styles. Do not include anything else except for a valid patchset in a code block marked as diff" },
     {
       role: "system",
@@ -56,12 +57,11 @@ export function App({ value, onChange, url, applyPatch }) {
           match[1] === "tsx" ||
           match[1] === "typescript"
         ) {
-          applyPatch(`"use client"\n${match[2]}`).then(() => {
-            //.then(() => setMessages([...messages, { role: "system", content: "patch applied"}]))
+          overwriteFile(`"use client"\n${match[2]}`).then(() => {
             setTimeout(() => {
               setMessages([
                 ...messages,
-                { role: "system", content: "codes updated" },
+                { role: "system", content: "file updated" },
               ]);
 
               // hack around a weird refresh bug
@@ -69,6 +69,18 @@ export function App({ value, onChange, url, applyPatch }) {
             }, 10);
           });
           return;
+        } else if (match[1] === "diff") {
+          applyPatch(match[2]).then(() => {
+            setTimeout(() => {
+              setMessages([
+                ...messages,
+                { role: "system", content: "patch applied" },
+              ]);
+
+              // hack around a weird refresh bug
+              iframeRef.current.src = url;
+            }, 10);
+          })
         }
       }
     }
@@ -127,7 +139,7 @@ export function App({ value, onChange, url, applyPatch }) {
                     content:
                       "Requirements:\n" +
                       msg +
-                      "\nCode:\n```\ntsx\n" +
+                      "\nCode:\n```tsx\n" +
                       value +
                       "\n```",
                   },
@@ -146,7 +158,7 @@ export function App({ value, onChange, url, applyPatch }) {
                     content:
                       "Requirements:\n" +
                       msg +
-                      "\nCode:\n```\ntsx\n" +
+                      "\nCode:\n```tsx\n" +
                       value +
                       "\n```",
                   },
@@ -170,7 +182,7 @@ export function App({ value, onChange, url, applyPatch }) {
               value={value}
               theme="vs-dark"
               onChange={async (e) => {
-                await onChange(e);
+                await overwriteFile(e);
                 setUserHadEditedCode(true);
                 setTimeout(() => {
                   // hack around a weird refresh bug
