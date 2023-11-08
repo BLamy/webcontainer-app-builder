@@ -1,79 +1,109 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { WebContainer } from "@webcontainer/api";
+import { WebContainer, FileSystemTree } from "@webcontainer/api";
 import App from "./App";
 import * as Diff from 'diff';
 
-// Should probably be in a .d.ts file 
-declare const __PACKAGE_CONTAINER_JSON__: string
 declare global {
-  interface Window {
-    webcontainer: WebContainer
-    webcontainerUrl: string; 
-  }
+ interface Window {
+   webcontainer: WebContainer
+   webcontainerUrl: string; 
+ }
+}
+const NEXTJS_TEMPLATE_REPO = 'BLamy/stackblitz-starters-nextjs-13.4.10';
+const ROOT_FILE_NAME = `app/page.tsx`
+
+let currentFileName = `${ROOT_FILE_NAME}`;
+
+async function fetchFileContent(url: string): Promise<string> {
+ const response = await fetch(url);
+ const data = await response.json();
+ return atob(data.content);
 }
 
-// Currently only supports editing one page
-let currentFileName = "/webcontainer/src/app/page.tsx";
+async function recursivelyFetchGithubLink(url: string): Promise<FileSystemTree> {
+  const response = await fetch(url);
+  const data = await response.json();
+  const parsedData: FileSystemTree = {};
+  for (let item of data) {
+  if (item.type === 'file') {
+    const content = await fetchFileContent(item.git_url);
+    parsedData[item.name] = {
+      file: {
+        contents: content.toString()
+      }
+    };
+  } else if (item.type === 'dir') {
+    const children = await recursivelyFetchGithubLink(item.url);
+    parsedData[item.name] = {
+      directory: children
+    };
+  }
+  }
+  return parsedData;
+ } 
+
+async function cloneRepo(url: string) {
+ const [owner, repo] = url.split('/');
+ return recursivelyFetchGithubLink(`https://api.github.com/repos/${owner}/${repo}/contents`);
+}
+
 async function writeAppPage(content) {
-  await webcontainerInstance.fs.writeFile(currentFileName, content, "utf-8");
-  renderApp()
+ await webcontainerInstance.fs.writeFile(currentFileName, content, "utf-8");
+ renderApp()
 }
 
 async function readAppPage() {
-  return (
-    await webcontainerInstance.fs.readFile(currentFileName, "utf-8")
-  ).toString();
+ return (
+   await webcontainerInstance.fs.readFile(currentFileName, "utf-8")
+ ).toString();
 }
 
 async function applyPatch(patch) {
-  const page = await readAppPage();
-  // TODO figure out how to find out if applying a patch fails
-  // Have GPT reflect on it's mistake in the event of a mistake
-  const newPage = Diff.applyPatch(page, patch);
-  writeAppPage(newPage)
+ const page = await readAppPage();
+ const newPage = Diff.applyPatch(page, patch);
+ writeAppPage(newPage)
 }
 
 const root = ReactDOM.createRoot(document.getElementById("app"));
 const renderApp = async () => {
-  root.render(
-    <App
-      value={await readAppPage()}
-      url={window.webcontainerUrl}
-      overwriteFile={newCode => writeAppPage(newCode)}
-      applyPatch={(patch) => applyPatch(patch)}
-    />
-  );
+  console.log('rendering', window.webcontainerUrl)
+ root.render(
+   <App
+     value={await readAppPage()}
+     url={window.webcontainerUrl}
+     overwriteFile={newCode => writeAppPage(newCode)}
+     applyPatch={(patch) => applyPatch(patch)}
+   />
+ );
 } 
 
-/** @type {import('@webcontainer/api').WebContainer}  */
-let webcontainerInstance;
+let webcontainerInstance: WebContainer;
 window.addEventListener("load", async () => {
-  webcontainerInstance = await WebContainer.boot();
-  window.webcontainer = webcontainerInstance;
+ webcontainerInstance = await WebContainer.boot();
+ window.webcontainer = webcontainerInstance;
+ const data = await cloneRepo(NEXTJS_TEMPLATE_REPO);
+ console.log(JSON.stringify(data))
+ await webcontainerInstance.mount(data);
 
-  await webcontainerInstance.mount(__PACKAGE_CONTAINER_JSON__);
+ console.log("installing node_modules");
+ const installProcess = await webcontainerInstance.spawn("npm", ["install", "--force"]);
+ installProcess.output.pipeTo(
+   new WritableStream({
+     write(data) {
+       console.log(data);
+     },
+   })
+ );
+ await installProcess.exit;
 
-  // npm install
-  console.log("installing node_modules");
-  const installProcess = await webcontainerInstance.spawn("npm", ["install"]);
-  installProcess.output.pipeTo(
-    new WritableStream({
-      write(data) {
-        console.log(data);
-      },
-    })
-  );
-  await installProcess.exit;
-
-  // 'npx create-next-app@13.4.9 --ts --tailwind --eslint --app --src-dir --import-alias "@/*" --use-pnpm app'
-  console.log("installing nextjs");
-  const createNextAppProcess = await webcontainerInstance.spawn("npm", [
-    "start",
-  ]);
-  createNextAppProcess.output.pipeTo(
-    new WritableStream({
-      write(data) {
+ console.log("installing nextjs");
+ const createNextAppProcess = await webcontainerInstance.spawn("npm", [
+   "run", "dev",
+ ]);
+ createNextAppProcess.output.pipeTo(
+   new WritableStream({
+     write(data) {
         console.log(data);
       },
     })
